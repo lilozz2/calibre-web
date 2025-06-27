@@ -29,6 +29,8 @@ def request_username():
 
 def main():
     app = create_app()
+    app.config['DEBUG'] = True
+    app.jinja_env.add_extension('jinja2.ext.do')
 
     from .web import web
     from .basic import basic

@@ -181,3 +181,13 @@ def contains_music(book_formats):
         if format.format.lower() in g.constants.EXTENSIONS_AUDIO:
             result = True
     return result
+
+@jinjia.app_template_global()
+def debug(obj):
+    """Debug print for templates"""
+    from flask import current_app
+    if current_app.config.get('DEBUG', False):
+        from pprint import pformat
+        formatted = pformat(obj)
+        return f'<pre class="debug">{formatted}</pre>'
+    return ''
