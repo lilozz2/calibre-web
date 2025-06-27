@@ -1204,7 +1204,7 @@ def serve_book(book_id, book_format, anyname):
         try:
             headers = Headers()
             headers["Content-Type"] = mimetypes.types_map.get('.' + book_format, "application/octet-stream")
-            if not range_header:                
+            if not range_header:
                 headers['Accept-Ranges'] = 'bytes'
             df = getFileFromEbooksFolder(book.path, data.name + "." + book_format)
             return do_gdrive_download(df, headers, (book_format.upper() == 'TXT'))
@@ -1672,3 +1672,97 @@ def show_book(book_id):
         flash(_("Oops! Selected book is unavailable. File does not exist or is not accessible"),
               category="error")
         return redirect(url_for("web.index"))
+
+
+@web.route('/tts/<int:book_id>/<book_format>')
+@login_required_if_no_ano
+@download_required
+def tts_book(book_id, book_format):
+    """Generates TTS for the specified book and serves it for download"""
+    book = calibre_db.get_filtered_book(book_id)
+
+    if not book:
+        flash(_("Oops! Selected book is unavailable. File does not exist or is not accessible"),
+              category="error")
+        log.debug("Selected book is unavailable for TTS. File does not exist or is not accessible")
+        return redirect(url_for("web.index"))
+
+    # Find the requested format
+    book_file = None
+    for data in book.data:
+        if data.format.lower() == book_format.lower():
+            book_file = os.path.join(config.config_calibre_dir, book.path,
+                                    data.name + "." + book_format)
+            break
+
+    # Check if file exists
+    if not book_file or not os.path.exists(book_file):
+        flash(_("Book format not found or inaccessible"), category="error")
+        return redirect(url_for("web.show_book", book_id=book_id))
+
+    # Define supported formats
+    supported_tts_formats = ['txt', 'epub', 'pdf']  # Add or remove formats as needed
+    if book_format.lower() not in supported_tts_formats:
+        flash(_("Sorry, TTS is not supported for {}").format(book_format.upper()), category="error")
+        return redirect(url_for("web.show_book", book_id=book_id))
+
+    # Output file path
+    tts_dir = os.path.join(config.get_book_path(), "tts_audio")
+    if not os.path.exists(tts_dir):
+        os.makedirs(tts_dir)
+
+    output_file = os.path.join(tts_dir, f"{book.id}_{book_format.lower()}.mp3")
+
+    # Check if file already exists (caching)
+    if not os.path.exists(output_file):
+        flash(_("Starting TTS conversion, this may take a while. You'll be redirected when complete."),
+              category="info")
+
+        try:
+            # Call your TTS script here
+            # Replace this with your actual TTS conversion code
+            # For example:
+            import subprocess
+
+            # Log the conversion start
+            log.info(f"Starting TTS conversion for book {book_id} in {book_format} format")
+
+            # Run your TTS script
+            cmd = [
+                "python",
+                "/path/to/your/tts_script.py",  # Change this to your TTS script path
+                "--input", book_file,
+                "--output", output_file,
+                "--format", book_format.lower()
+            ]
+
+            # Execute conversion synchronously
+            result = subprocess.run(cmd, capture_output=True, text=True)
+
+            # Check if conversion successful
+            if result.returncode != 0 or not os.path.exists(output_file):
+                log.error(f"TTS conversion failed: {result.stderr}")
+                flash(_("TTS conversion failed. Please try again later."), category="error")
+                return redirect(url_for("web.show_book", book_id=book_id))
+
+        except Exception as e:
+            log.error(f"Error during TTS conversion: {str(e)}")
+            flash(_("Error during TTS conversion: {}").format(str(e)), category="error")
+            return redirect(url_for("web.show_book", book_id=book_id))
+
+    # Record download
+    ub.update_download(book_id, int(current_user.id))
+
+    # Generate a nice filename
+    download_name = f"{book.title.replace(' ', '_')}_{book_format.lower()}_tts.mp3"
+
+    log.info(f"Serving TTS audio file for book {book_id}")
+
+    # Serve the file
+    return send_from_directory(
+        os.path.dirname(output_file),
+        os.path.basename(output_file),
+        mimetype='audio/mpeg',
+        as_attachment=True,
+        attachment_filename=download_name
+    )

@@ -340,16 +340,59 @@
                     {% endif %}
 
                 {% endif %}
+                <div class="col-sm-12">
                 {% if current_user.role_edit() %}
-                    <div class="col-sm-12">
+
                         <div class="btn-group" role="group" aria-label="Edit/Delete book">
                             <a href="{{ url_for('edit-book.show_edit_book', book_id=entry.id) }}"
                                class="btn btn-sm btn-primary" id="edit_book" role="button"><span
                                     class="glyphicon glyphicon-edit"></span> {{ _('Edit Metadata') }}</a>
                         </div>
                         <div class="btn btn-default" data-back="{{ url_for('web.index') }}" id="back">{{_('Cancel')}}</div>
-                   </div>
+
                 {% endif %}
+
+                {% if current_user.role_download() %}
+                    <div class="btn-group" role="group" aria-label="Convert book to TTS">
+                        {% set tts_formats = ['txt', 'epub', 'pdf'] %}
+                        {% set tts_format_count = [] %}
+
+                        {% for data in entry.data %}
+                            {% if data.format|lower in tts_formats %}
+                                {% do tts_format_count.append(1) %}
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if tts_format_count|length > 0 %}
+                            {% if tts_format_count|length > 1 %}
+                            <button id="tts-dropdown" type="button" class="btn btn-sm btn-primary dropdown-toggle"
+                            data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                <span class="glyphicon glyphicon-volume-up"></span> {{ _('Generate TTS') }}
+                                <span class="caret"></span>
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="tts-dropdown">
+                                {% for data in entry.data %}
+                                    {% if data.format|lower in tts_formats %}
+                                        <li><a href="{{ url_for('web.tts_book', book_id=entry.id, book_format=data.format|lower) }}">
+                                            {{ data.format }}
+                                        </a></li>
+                                    {% endif %}
+                                {% endfor %}
+                            </ul>
+                            {% else %}
+                                {% for data in entry.data %}
+                                    {% if data.format|lower in tts_formats %}
+                                        <a href="{{ url_for('web.tts_book', book_id=entry.id, book_format=data.format|lower) }}"
+                                            class="btn btn-sm btn-primary" role="button">
+                                            <span class="glyphicon glyphicon-volume-up"></span> {{ _('Generate TTS') }} - {{ data.format }}
+                                        </a>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                {% endif %}
+                </div>
         </div>
     </div>
 </div>
