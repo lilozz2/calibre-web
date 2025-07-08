@@ -373,7 +373,7 @@
                             <ul class="dropdown-menu" aria-labelledby="tts-dropdown">
                                 {% for data in entry.data %}
                                     {% if data.format|lower in tts_formats %}
-                                        <li><a href="{{ url_for('web.tts_book', book_id=entry.id, book_format=data.format|lower) }}">
+                                        <li><a href="{{ url_for('web.tts_config', book_id=entry.id, book_format=data.format|lower) }}">
                                             {{ data.format }}
                                         </a></li>
                                     {% endif %}
@@ -382,7 +382,7 @@
                             {% else %}
                                 {% for data in entry.data %}
                                     {% if data.format|lower in tts_formats %}
-                                        <a href="{{ url_for('web.tts_book', book_id=entry.id, book_format=data.format|lower) }}"
+                                        <a href="{{ url_for('web.tts_config', book_id=entry.id, book_format=data.format|lower) }}"
                                             class="btn btn-sm btn-primary" role="button">
                                             <span class="glyphicon glyphicon-volume-up"></span> {{ _('Generate TTS') }} - {{ data.format }}
                                         </a>

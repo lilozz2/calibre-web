@@ -19,6 +19,7 @@
 #  along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import glob
 import json
 import mimetypes
 import chardet  # dependency of requests
@@ -60,6 +61,7 @@ from .services.worker import WorkerThread
 from .tasks_status import render_task_status
 from .usermanagement import user_login_required
 from .string_helper import strip_whitespaces
+from .voice_constants import voices
 
 
 feature_support = {
@@ -1678,6 +1680,59 @@ def show_book(book_id):
 @login_required_if_no_ano
 @download_required
 def tts_book(book_id, book_format):
+    """Redirect to TTS configuration page"""
+    return redirect(url_for('web.tts_config', book_id=book_id, book_format=book_format))
+
+
+@web.route('/tts_config/<int:book_id>/<book_format>')
+@login_required_if_no_ano
+@download_required
+def tts_config(book_id, book_format):
+    """Show TTS configuration page"""
+    book = calibre_db.get_filtered_book(book_id)
+
+    if not book:
+        flash(_("Oops! Selected book is unavailable. File does not exist or is not accessible"),
+              category="error")
+        return redirect(url_for("web.index"))
+
+    # Check if format is supported
+    supported_tts_formats = ['txt', 'epub', 'pdf']
+    if book_format.lower() not in supported_tts_formats:
+        flash(_("Sorry, TTS is not supported for {}").format(book_format.upper()), category="error")
+        return redirect(url_for("web.show_book", book_id=book_id))
+
+    # Get available voices (you can expand this based on your TTS system)
+    available_voices = [
+        {'id': 'af_heart', 'name': 'Heart (Afrikaans)'},
+        {'id': 'en_us', 'name': 'US English'},
+        {'id': 'en_gb', 'name': 'British English'},
+        # Add more voices as needed
+    ]
+
+    # For EPUB files, you might want to extract chapter information
+    chapters = []
+    if book_format.lower() == 'epub':
+        # Add logic to extract chapter information from EPUB
+        # This is a simplified example
+        chapters = [
+            {'id': 'all', 'title': 'All Chapters'},
+            {'id': '1', 'title': 'Chapter 1'},
+            {'id': '2', 'title': 'Chapter 2'},
+            # You'd extract actual chapter info here
+        ]
+
+    return render_title_template('tts_config.html',
+                               book=book,
+                               book_format=book_format,
+                               available_voices=available_voices,
+                               chapters=chapters,
+                               title=_("TTS Configuration"))
+
+@web.route('/tts_process/<int:book_id>/<book_format>')
+@login_required_if_no_ano
+@download_required
+def tts_process(book_id, book_format):
     """Generates TTS for the specified book and serves it for download"""
     book = calibre_db.get_filtered_book(book_id)
 
@@ -1707,40 +1762,47 @@ def tts_book(book_id, book_format):
         return redirect(url_for("web.show_book", book_id=book_id))
 
     # Output file path
-    tts_dir = os.path.join(config.get_book_path(), "tts_audio")
-    if not os.path.exists(tts_dir):
-        os.makedirs(tts_dir)
+    tts_dir = os.path.join(config.config_calibre_dir, book.path)
+    flash(_(f"{book.path}"))
+    flash(_(f"{book.title} - {book.author_sort}"), category="info")
 
-    output_file = os.path.join(tts_dir, f"{book.id}_{book_format.lower()}.mp3")
+    audiobook_list = glob.glob(os.path.join(tts_dir, '*.m4b'))
+    output_file = audiobook_list[0] if audiobook_list else None
 
     # Check if file already exists (caching)
-    if not os.path.exists(output_file):
+    if not output_file:
         flash(_("Starting TTS conversion, this may take a while. You'll be redirected when complete."),
               category="info")
 
         try:
-            # Call your TTS script here
-            # Replace this with your actual TTS conversion code
-            # For example:
             import subprocess
 
             # Log the conversion start
             log.info(f"Starting TTS conversion for book {book_id} in {book_format} format")
+            espeak_data_path = os.path.join("/opt/homebrew/opt/espeak-ng", "share", "espeak-ng-data")
+
+            # Set the environment variable
+            os.environ['ESPEAK_DATA_PATH'] = espeak_data_path
 
             # Run your TTS script
             cmd = [
-                "python",
-                "/path/to/your/tts_script.py",  # Change this to your TTS script path
-                "--input", book_file,
-                "--output", output_file,
-                "--format", book_format.lower()
+                "audiblez",
+                book_file,
+                "--output", tts_dir,
+                "-v", "af_heart"
             ]
 
             # Execute conversion synchronously
             result = subprocess.run(cmd, capture_output=True, text=True)
 
+            for wav_file in glob.glob(os.path.join(tts_dir, '*.wav')):
+                os.remove(wav_file)  # Clean up wav files after conversion
+
+            audiobook_list = glob.glob(os.path.join(tts_dir, '*.m4b'))
+            output_file = audiobook_list[0] if audiobook_list else None
+
             # Check if conversion successful
-            if result.returncode != 0 or not os.path.exists(output_file):
+            if result.returncode != 0 or not output_file:
                 log.error(f"TTS conversion failed: {result.stderr}")
                 flash(_("TTS conversion failed. Please try again later."), category="error")
                 return redirect(url_for("web.show_book", book_id=book_id))
@@ -1754,15 +1816,18 @@ def tts_book(book_id, book_format):
     ub.update_download(book_id, int(current_user.id))
 
     # Generate a nice filename
-    download_name = f"{book.title.replace(' ', '_')}_{book_format.lower()}_tts.mp3"
+    download_name = f"{book.title.replace(' ', '_')}_{book_format.lower()}_tts.m4b"
 
     log.info(f"Serving TTS audio file for book {book_id}")
 
-    # Serve the file
-    return send_from_directory(
-        os.path.dirname(output_file),
-        os.path.basename(output_file),
-        mimetype='audio/mpeg',
-        as_attachment=True,
-        attachment_filename=download_name
+    response = make_response(
+        send_from_directory(
+            os.path.dirname(output_file),
+            os.path.basename(output_file),
+            as_attachment=True,
+            download_name=download_name,
+        )
     )
+    if not request.headers.get('Range'):
+        response.headers['Accept-Ranges'] = 'bytes'
+    return response
