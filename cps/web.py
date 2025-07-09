@@ -61,7 +61,8 @@ from .services.worker import WorkerThread
 from .tasks_status import render_task_status
 from .usermanagement import user_login_required
 from .string_helper import strip_whitespaces
-from .voice_constants import voices
+from .voice_constants import voices, flags
+from .tts_core import find_document_chapters_and_extract_texts, find_good_chapters, convert_epub_tts, get_chapters
 
 
 feature_support = {
@@ -1702,46 +1703,6 @@ def tts_config(book_id, book_format):
         flash(_("Sorry, TTS is not supported for {}").format(book_format.upper()), category="error")
         return redirect(url_for("web.show_book", book_id=book_id))
 
-    # Get available voices (you can expand this based on your TTS system)
-    available_voices = [
-        {'id': 'af_heart', 'name': 'Heart (Afrikaans)'},
-        {'id': 'en_us', 'name': 'US English'},
-        {'id': 'en_gb', 'name': 'British English'},
-        # Add more voices as needed
-    ]
-
-    # For EPUB files, you might want to extract chapter information
-    chapters = []
-    if book_format.lower() == 'epub':
-        # Add logic to extract chapter information from EPUB
-        # This is a simplified example
-        chapters = [
-            {'id': 'all', 'title': 'All Chapters'},
-            {'id': '1', 'title': 'Chapter 1'},
-            {'id': '2', 'title': 'Chapter 2'},
-            # You'd extract actual chapter info here
-        ]
-
-    return render_title_template('tts_config.html',
-                               book=book,
-                               book_format=book_format,
-                               available_voices=available_voices,
-                               chapters=chapters,
-                               title=_("TTS Configuration"))
-
-@web.route('/tts_process/<int:book_id>/<book_format>')
-@login_required_if_no_ano
-@download_required
-def tts_process(book_id, book_format):
-    """Generates TTS for the specified book and serves it for download"""
-    book = calibre_db.get_filtered_book(book_id)
-
-    if not book:
-        flash(_("Oops! Selected book is unavailable. File does not exist or is not accessible"),
-              category="error")
-        log.debug("Selected book is unavailable for TTS. File does not exist or is not accessible")
-        return redirect(url_for("web.index"))
-
     # Find the requested format
     book_file = None
     for data in book.data:
@@ -1755,16 +1716,33 @@ def tts_process(book_id, book_format):
         flash(_("Book format not found or inaccessible"), category="error")
         return redirect(url_for("web.show_book", book_id=book_id))
 
-    # Define supported formats
-    supported_tts_formats = ['txt', 'epub', 'pdf']  # Add or remove formats as needed
-    if book_format.lower() not in supported_tts_formats:
-        flash(_("Sorry, TTS is not supported for {}").format(book_format.upper()), category="error")
-        return redirect(url_for("web.show_book", book_id=book_id))
+    chapters = get_chapters(book_file)
 
-    # Output file path
+    return render_title_template('tts_config.html',
+                               book=book,
+                               book_format=book_format,
+                               book_file=book_file,
+                               available_voices=voices,
+                               flags=flags,
+                               chapters=chapters,
+                               title=_("TTS Configuration"))
+
+@web.route('/tts_process/<int:book_id>/<book_format>', methods=['POST'])
+@login_required_if_no_ano
+@download_required
+def tts_process(book_id, book_format):
+    """Generates TTS for the specified book and serves it for download"""
+    voice = request.form.get('voice', 'af_heart')
+    speed = float(request.form.get('speed', '1.0'))
+    selected_chapter_ids = request.form.getlist('chapters')  # This gets list of chapter IDs
+    book_file = request.form.get('book_file', None)
+
+    chapters = get_chapters(book_file)
+    selected_chapters = [chapter for chapter in chapters if chapter.id in selected_chapter_ids]
+
+    book = calibre_db.get_filtered_book(book_id)
+
     tts_dir = os.path.join(config.config_calibre_dir, book.path)
-    flash(_(f"{book.path}"))
-    flash(_(f"{book.title} - {book.author_sort}"), category="info")
 
     audiobook_list = glob.glob(os.path.join(tts_dir, '*.m4b'))
     output_file = audiobook_list[0] if audiobook_list else None
@@ -1775,37 +1753,13 @@ def tts_process(book_id, book_format):
               category="info")
 
         try:
-            import subprocess
-
-            # Log the conversion start
-            log.info(f"Starting TTS conversion for book {book_id} in {book_format} format")
-            espeak_data_path = os.path.join("/opt/homebrew/opt/espeak-ng", "share", "espeak-ng-data")
-
-            # Set the environment variable
-            os.environ['ESPEAK_DATA_PATH'] = espeak_data_path
-
-            # Run your TTS script
-            cmd = [
-                "audiblez",
-                book_file,
-                "--output", tts_dir,
-                "-v", "af_heart"
-            ]
-
-            # Execute conversion synchronously
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            convert_epub_tts(book_file, voice, speed, selected_chapters, tts_dir)
 
             for wav_file in glob.glob(os.path.join(tts_dir, '*.wav')):
                 os.remove(wav_file)  # Clean up wav files after conversion
 
             audiobook_list = glob.glob(os.path.join(tts_dir, '*.m4b'))
             output_file = audiobook_list[0] if audiobook_list else None
-
-            # Check if conversion successful
-            if result.returncode != 0 or not output_file:
-                log.error(f"TTS conversion failed: {result.stderr}")
-                flash(_("TTS conversion failed. Please try again later."), category="error")
-                return redirect(url_for("web.show_book", book_id=book_id))
 
         except Exception as e:
             log.error(f"Error during TTS conversion: {str(e)}")

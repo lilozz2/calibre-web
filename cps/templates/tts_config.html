@@ -9,12 +9,17 @@
                 <h3>{{book.title}} <small>{{book_format.upper()}}</small></h3>
             </div>
 
-            <form method="POST" action="{{url_for('web.tts_process', book_id=book.id, book_format=book_format)}}">
+            <form method="POST" action="{{url_for('web.tts_process', book_id=book.id)}}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="book_file" value="{{book_file}}">
+
                 <div class="form-group">
                     <label for="voice">{{_('Voice')}}</label>
                     <select class="form-control" id="voice" name="voice">
-                        {% for voice in available_voices %}
-                        <option value="{{voice.id}}" {% if voice.id == 'af_heart' %}selected{% endif %}>{{voice.name}}</option>
+                        {% for region in available_voices %}
+                            {% for voice in available_voices[region] %}
+                                <option value="{{voice}}">{{flags[region]}} {{voice}}</option>
+                            {% endfor %}
                         {% endfor %}
                     </select>
                 </div>
@@ -31,20 +36,12 @@
                     {% for chapter in chapters %}
                     <div class="checkbox">
                         <label>
-                            <input type="checkbox" name="chapters" value="{{chapter.id}}" {% if chapter.id == 'all' %}checked{% endif %}> {{chapter.title}}
+                            <input type="checkbox" name="chapters" value="{{chapter.id}}" {% if chapter.is_selected %}checked{% endif %}> {{chapter.short_name}}
                         </label>
                     </div>
                     {% endfor %}
                 </div>
                 {% endif %}
-
-                <div class="form-group">
-                    <div class="checkbox">
-                        <label>
-                            <input type="checkbox" name="include_metadata" checked> {{_('Include book metadata in audio')}}
-                        </label>
-                    </div>
-                </div>
 
                 <div class="form-group">
                     <button type="submit" class="btn btn-primary">{{_('Generate Audiobook')}}</button>
@@ -54,4 +51,17 @@
         </div>
     </div>
 </div>
+<script>
+    // Update speed display when slider changes
+    document.getElementById('speed').addEventListener('input', function() {
+        document.getElementById('speed-value').textContent = this.value;
+    });
+
+    // Set initial value on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const speedSlider = document.getElementById('speed');
+        const speedValue = document.getElementById('speed-value');
+        speedValue.textContent = speedSlider.value;
+    });
+</script>
 {% endblock %}
