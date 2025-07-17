@@ -18,10 +18,19 @@
                     <select class="form-control" id="voice" name="voice">
                         {% for region in available_voices %}
                             {% for voice in available_voices[region] %}
-                                <option value="{{voice}}">{{flags[region]}} {{voice}}</option>
+                                <option value="{{voice}}" data-audio="{{url_for('static', filename='samples/' + 'sample_' + voice + '.mp4')}}">
+                                    {{flags[region]}} {{voice}}
+                                </option>
                             {% endfor %}
                         {% endfor %}
                     </select>
+                </div>
+
+                <div class="form-group">
+                    <button type="button" class="btn btn-sm btn-info" id="preview-voice" style="margin-top: 5px;">
+                        {{_('Preview Voice')}}
+                    </button>
+                    <audio id="voice-preview" preload="none"></audio>
                 </div>
 
                 <div class="form-group">
@@ -32,14 +41,55 @@
 
                 {% if chapters %}
                 <div class="form-group">
-                    <label>{{_('Chapters to Include')}}</label>
-                    {% for chapter in chapters %}
-                    <div class="checkbox">
-                        <label>
-                            <input type="checkbox" name="chapters" value="{{chapter.id}}" {% if chapter.is_selected %}checked{% endif %}> {{chapter.short_name}}
-                        </label>
+                    <div class="row">
+                        <!-- Chapter Selection Panel -->
+                        <div class="col-md-6">
+                            <label>{{_('Chapters to Include')}}</label>
+                            <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px;">
+                                {% for chapter in chapters %}
+                                <div class="checkbox">
+                                    <label>
+                                        <input type="checkbox"
+                                               name="chapters"
+                                               value="{{chapter.id}}"
+                                               data-chapter-text="{{chapter.extracted_text[:500] | replace('\n', ' ') | replace('\r', ' ') | e}}"
+                                               {% if chapter.is_selected %}checked{% endif %}>
+                                        {{chapter.short_name}}
+                                    </label>
+                                </div>
+                                {% endfor %}
+                            </div>
+
+                            <!-- Select All / Deselect All buttons -->
+                            <div style="margin-top: 10px;">
+                                <button type="button" class="btn btn-sm btn-default" id="select-all-chapters">
+                                    {{_('Select All')}}
+                                </button>
+                                <button type="button" class="btn btn-sm btn-default" id="deselect-all-chapters">
+                                    {{_('Deselect All')}}
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Chapter Preview Panel -->
+                        <div class="col-md-6">
+                            <label>{{_('Chapter Preview')}}</label>
+                            <div id="chapter-preview" style="height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 15px; background-color: #f9f9f9;">
+                                <div id="no-selection" class="text-muted" style="text-align: center; margin-top: 150px;">
+                                    <i class="fa fa-book" style="font-size: 48px; margin-bottom: 10px;"></i>
+                                    <p>{{_('Select chapters to preview their content')}}</p>
+                                </div>
+
+                                <div id="chapter-content" style="display: none;">
+                                    <h5 id="preview-chapter-title"></h5>
+                                    <div id="preview-text"></div>
+                                    <div class="text-muted" style="margin-top: 10px; font-size: 0.9em;">
+                                        <em>{{_('(First 100 words of chapter)')}}</em>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    {% endfor %}
                 </div>
                 {% endif %}
 
@@ -51,17 +101,5 @@
         </div>
     </div>
 </div>
-<script>
-    // Update speed display when slider changes
-    document.getElementById('speed').addEventListener('input', function() {
-        document.getElementById('speed-value').textContent = this.value;
-    });
-
-    // Set initial value on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        const speedSlider = document.getElementById('speed');
-        const speedValue = document.getElementById('speed-value');
-        speedValue.textContent = speedSlider.value;
-    });
-</script>
+<script src="{{ url_for('static', filename='js/tts_config.js') }}"></script>
 {% endblock %}
