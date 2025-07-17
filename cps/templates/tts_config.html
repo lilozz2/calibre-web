@@ -9,7 +9,7 @@
                 <h3>{{book.title}} <small>{{book_format.upper()}}</small></h3>
             </div>
 
-            <form method="POST" action="{{url_for('web.tts_process', book_id=book.id)}}">
+            <form method="POST" action="{{url_for('web.tts_process', book_id=book.id, book_format=book_format)}}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="book_file" value="{{book_file}}">
 

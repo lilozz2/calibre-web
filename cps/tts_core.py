@@ -82,7 +82,7 @@ def get_chapters(file_path):
     return chapters
 
 
-def convert_epub_tts(file_path, voice, speed, selected_chapters, output_folder='.',
+def convert_epub_tts(file_path, voice, speed, selected_chapters, espeak_path, output_folder='.',
          max_chapters=None, max_sentences=None, post_event=None):
     if post_event: post_event('CORE_STARTED')
     load_spacy()
@@ -91,6 +91,7 @@ def convert_epub_tts(file_path, voice, speed, selected_chapters, output_folder='
 
     filename = Path(file_path).name
 
+    os.environ['ESPEAK_DATA_PATH'] = espeak_path
     extension = '.epub'
     book = epub.read_epub(file_path)
     meta_title = book.get_metadata('DC', 'title')
@@ -124,6 +125,8 @@ def convert_epub_tts(file_path, voice, speed, selected_chapters, output_folder='
     chapter_wav_files = []
     for i, chapter in enumerate(selected_chapters, start=1):
         if max_chapters and i > max_chapters: break
+        if post_event:
+            post_event('CORE_CHAPTER_STARTED', chapter_index=chapter.chapter_index)
         text = chapter.extracted_text
         xhtml_file_name = chapter.get_name().replace(' ', '_').replace('/', '_').replace('\\', '_')
         chapter_wav_path = Path(output_folder) / filename.replace(extension, f'_chapter_{i}_{voice}_{xhtml_file_name}.wav')
@@ -148,6 +151,8 @@ def convert_epub_tts(file_path, voice, speed, selected_chapters, output_folder='
         if audio_segments:
             final_audio = np.concatenate(audio_segments)
             soundfile.write(chapter_wav_path, final_audio, sample_rate)
+            if post_event:
+                post_event('CORE_CHAPTER_FINISHED', chapter_index=chapter.chapter_index)
             end_time = time.time()
             delta_seconds = end_time - start_time
             chars_per_sec = len(text) / delta_seconds

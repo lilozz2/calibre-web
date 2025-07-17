@@ -62,8 +62,8 @@ from .tasks_status import render_task_status
 from .usermanagement import user_login_required
 from .string_helper import strip_whitespaces
 from .voice_constants import voices, flags
-from .tts_core import find_document_chapters_and_extract_texts, find_good_chapters, convert_epub_tts, get_chapters
-
+from .tts_core import get_chapters
+from .tasks.tts import TaskTTS
 
 feature_support = {
     'ldap': bool(services.ldap),
@@ -1714,7 +1714,7 @@ def tts_config(book_id, book_format):
     # Check if file exists
     if not book_file or not os.path.exists(book_file):
         flash(_("Book format not found or inaccessible"), category="error")
-        return redirect(url_for("web.show_book", book_id=book_id))
+        return redirect(url_for("web.show_book", book_id=book_id, book_format=book_format))
 
     chapters = get_chapters(book_file)
 
@@ -1738,50 +1738,28 @@ def tts_process(book_id, book_format):
     book_file = request.form.get('book_file', None)
 
     chapters = get_chapters(book_file)
-    selected_chapters = [chapter for chapter in chapters if chapter.id in selected_chapter_ids]
+    selected_chapters = [chapter for chapter in chapters if str(chapter.id) in selected_chapter_ids]
+
+    if not selected_chapters:
+        flash(_("No chapters selected for conversion"), category="error")
+        return redirect(url_for("web.tts_config", book_id=book_id, book_format=book_format))
 
     book = calibre_db.get_filtered_book(book_id)
 
-    tts_dir = os.path.join(config.config_calibre_dir, book.path)
-
-    audiobook_list = glob.glob(os.path.join(tts_dir, '*.m4b'))
-    output_file = audiobook_list[0] if audiobook_list else None
-
-    # Check if file already exists (caching)
-    if not output_file:
-        flash(_("Starting TTS conversion, this may take a while. You'll be redirected when complete."),
-              category="info")
-
-        try:
-            convert_epub_tts(book_file, voice, speed, selected_chapters, tts_dir)
-
-            for wav_file in glob.glob(os.path.join(tts_dir, '*.wav')):
-                os.remove(wav_file)  # Clean up wav files after conversion
-
-            audiobook_list = glob.glob(os.path.join(tts_dir, '*.m4b'))
-            output_file = audiobook_list[0] if audiobook_list else None
-
-        except Exception as e:
-            log.error(f"Error during TTS conversion: {str(e)}")
-            flash(_("Error during TTS conversion: {}").format(str(e)), category="error")
-            return redirect(url_for("web.show_book", book_id=book_id))
-
-    # Record download
-    ub.update_download(book_id, int(current_user.id))
-
-    # Generate a nice filename
-    download_name = f"{book.title.replace(' ', '_')}_{book_format.lower()}_tts.m4b"
-
-    log.info(f"Serving TTS audio file for book {book_id}")
-
-    response = make_response(
-        send_from_directory(
-            os.path.dirname(output_file),
-            os.path.basename(output_file),
-            as_attachment=True,
-            download_name=download_name,
-        )
+    task_message = _("Converting '%(title)s' to audiobook", title=book.title)
+    tts_task = TaskTTS(
+        book_id=book_id,
+        book_format=book_format,
+        book_file=book_file,
+        voice=voice,
+        speed=speed,
+        selected_chapters=selected_chapters,
+        user_name=current_user.name,
+        user_id=current_user.id
     )
-    if not request.headers.get('Range'):
-        response.headers['Accept-Ranges'] = 'bytes'
-    return response
+
+    # Add task to worker queue
+    WorkerThread.add(current_user.id, tts_task)
+
+    flash(_("TTS conversion started. You can monitor progress in the tasks page."), category="info")
+    return redirect(url_for("tasks.get_tasks_status"))
