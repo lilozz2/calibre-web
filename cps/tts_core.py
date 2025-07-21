@@ -125,8 +125,6 @@ def convert_epub_tts(file_path, voice, speed, selected_chapters, espeak_path, ou
     chapter_wav_files = []
     for i, chapter in enumerate(selected_chapters, start=1):
         if max_chapters and i > max_chapters: break
-        if post_event:
-            post_event('CORE_CHAPTER_STARTED', chapter_index=chapter.chapter_index)
         text = chapter.extracted_text
         xhtml_file_name = chapter.get_name().replace(' ', '_').replace('/', '_').replace('\\', '_')
         chapter_wav_path = Path(output_folder) / filename.replace(extension, f'_chapter_{i}_{voice}_{xhtml_file_name}.wav')
@@ -135,7 +133,7 @@ def convert_epub_tts(file_path, voice, speed, selected_chapters, espeak_path, ou
             print(f'File for chapter {i} already exists. Skipping')
             stats.processed_chars += len(text)
             if post_event:
-                post_event('CORE_CHAPTER_FINISHED', chapter_index=chapter.chapter_index)
+                post_event('CORE_CHAPTER_FINISHED', chapter_index=i)
             continue
         if len(text.strip()) < 10:
             print(f'Skipping empty chapter {i}')
@@ -145,14 +143,13 @@ def convert_epub_tts(file_path, voice, speed, selected_chapters, espeak_path, ou
             # add intro text
             text = f'{title} – {creator}.\n\n' + text
         start_time = time.time()
-        if post_event: post_event('CORE_CHAPTER_STARTED', chapter_index=chapter.chapter_index)
         audio_segments = gen_audio_segments(
             pipeline, text, voice, speed, stats, post_event=post_event, max_sentences=max_sentences)
         if audio_segments:
             final_audio = np.concatenate(audio_segments)
             soundfile.write(chapter_wav_path, final_audio, sample_rate)
             if post_event:
-                post_event('CORE_CHAPTER_FINISHED', chapter_index=chapter.chapter_index)
+                post_event('CORE_CHAPTER_FINISHED', chapter_index=i)
             end_time = time.time()
             delta_seconds = end_time - start_time
             chars_per_sec = len(text) / delta_seconds
@@ -306,9 +303,11 @@ def concat_wavs_with_ffmpeg(chapter_files, output_folder, filename):
     wav_list_txt = Path(output_folder) / filename.replace('.epub', '_wav_list.txt')
     with open(wav_list_txt, 'w') as f:
         for wav_file in chapter_files:
-            f.write(f"file '{wav_file}'\n")
+            abs_path = Path(wav_file).resolve()
+            escaped_path = str(abs_path).replace("'", "'\\''")
+            f.write(f"file '{escaped_path}'\n")
     concat_file_path = Path(output_folder) / filename.replace('.epub', '.tmp.mp4')
-    subprocess.run(['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', wav_list_txt, '-c', 'copy', concat_file_path])
+    subprocess.run(['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', str(wav_list_txt), '-c', 'copy', str(concat_file_path)])
     Path(wav_list_txt).unlink()
     return concat_file_path
 
