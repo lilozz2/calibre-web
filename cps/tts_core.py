@@ -154,7 +154,6 @@ def convert_epub_tts(file_path, voice, speed, selected_chapters, espeak_path, ou
             delta_seconds = end_time - start_time
             chars_per_sec = len(text) / delta_seconds
             print('Chapter written to', chapter_wav_path)
-            if post_event: post_event('CORE_CHAPTER_FINISHED', chapter_index=chapter.chapter_index)
             print(f'Chapter {i} read in {delta_seconds:.2f} seconds ({chars_per_sec:.0f} characters per second)')
         else:
             print(f'Warning: No audio generated for chapter {i}')
