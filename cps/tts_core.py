@@ -306,8 +306,8 @@ def concat_wavs_with_ffmpeg(chapter_files, output_folder, filename):
             abs_path = Path(wav_file).resolve()
             escaped_path = str(abs_path).replace("'", "'\\''")
             f.write(f"file '{escaped_path}'\n")
-    concat_file_path = Path(output_folder) / filename.replace('.epub', '.tmp.mp4')
-    subprocess.run(['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', str(wav_list_txt), '-c', 'copy', str(concat_file_path)])
+    concat_file_path = Path(output_folder) / filename.replace('.epub', '.tmp.wav')
+    subprocess.run(['ffmpeg', '-y', '-f', 'concat', '-safe', '0', '-i', str(wav_list_txt), '-c', 'pcm_s16le', str(concat_file_path)])
     Path(wav_list_txt).unlink()
     return concat_file_path
 
