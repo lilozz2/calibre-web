@@ -4,6 +4,7 @@ from flask_babel import lazy_gettext as N_
 from cps.services.worker import CalibreTask
 from cps import logger, config, db
 from cps.tts_core import convert_epub_tts
+from pathlib import Path
 
 log = logger.create()
 
@@ -64,18 +65,22 @@ class TaskTTS(CalibreTask):
                         output_file = audiobook_list[0]
                         self.results['output_file'] = output_file
 
-                        file_name = book.path.rsplit('/', 1)[-1]
+                        file_name = Path(self.book_file).stem
                         file_size = os.path.getsize(output_file)
                         file_ext = output_file.rsplit('.', 1)[-1].lower()
 
                         try:
+                            existing_format = calibre_db.get_book_format(self.book_id, file_ext.upper())
+                            if existing_format:
+                                calibre_db.session.delete(existing_format)
+                                calibre_db.session.commit()
                             db_format = db.Data(self.book_id, file_ext.upper(), file_size, file_name)
                             calibre_db.session.add(db_format)
                             calibre_db.session.commit()
                             calibre_db.create_functions(config)
                         except Exception as e:
                             calibre_db.session.rollback()
-                            log.error_or_exception("Database error: {}".format(e))
+                            self._handleError(N_("Audiobook database update failed: %(error)s", error=str(e)))
 
                         self.progress = 1.0
                         self.message = N_("TTS conversion completed successfully")
