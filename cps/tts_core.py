@@ -83,8 +83,12 @@ def get_chapters(file_path):
 
 
 def convert_epub_tts(file_path, voice, speed, selected_chapters, espeak_path, output_folder='.',
-         max_chapters=None, max_sentences=None, post_event=None):
+         max_chapters=None, max_sentences=None, post_event=None, cancel_check=None):
     if post_event: post_event('CORE_STARTED')
+
+    if cancel_check and cancel_check():
+        raise InterruptedError("TTS conversion was cancelled")
+    
     load_spacy()
     if output_folder != '.':
         Path(output_folder).mkdir(parents=True, exist_ok=True)
@@ -124,6 +128,9 @@ def convert_epub_tts(file_path, voice, speed, selected_chapters, espeak_path, ou
 
     chapter_wav_files = []
     for i, chapter in enumerate(selected_chapters, start=1):
+        if cancel_check and cancel_check():
+            raise InterruptedError("TTS conversion was cancelled")
+        
         if max_chapters and i > max_chapters: break
         text = chapter.extracted_text
         xhtml_file_name = chapter.get_name().replace(' ', '_').replace('/', '_').replace('\\', '_')
@@ -144,7 +151,7 @@ def convert_epub_tts(file_path, voice, speed, selected_chapters, espeak_path, ou
             text = f'{title} – {creator}.\n\n' + text
         start_time = time.time()
         audio_segments = gen_audio_segments(
-            pipeline, text, voice, speed, stats, post_event=post_event, max_sentences=max_sentences)
+            pipeline, text, voice, speed, stats, post_event=post_event, max_sentences=max_sentences, cancel_check=cancel_check)
         if audio_segments:
             final_audio = np.concatenate(audio_segments)
             soundfile.write(chapter_wav_path, final_audio, sample_rate)
@@ -196,13 +203,16 @@ def print_selected_chapters(document_chapters, chapters):
     ], headers=['#', 'Chapter', 'Text Length', 'Selected', 'First words']))
 
 
-def gen_audio_segments(pipeline, text, voice, speed, stats=None, max_sentences=None, post_event=None):
+def gen_audio_segments(pipeline, text, voice, speed, stats=None, max_sentences=None, post_event=None, cancel_check=None):
     nlp = spacy.load('xx_ent_wiki_sm')
     nlp.add_pipe('sentencizer')
     audio_segments = []
     doc = nlp(text)
     sentences = list(doc.sents)
     for i, sent in enumerate(sentences):
+        if cancel_check and cancel_check():
+            raise InterruptedError("TTS conversion was cancelled")
+        
         if max_sentences and i > max_sentences: break
         for gs, ps, audio in pipeline(sent.text, voice=voice, speed=speed, split_pattern=r'\n\n\n'):
             audio_segments.append(audio)

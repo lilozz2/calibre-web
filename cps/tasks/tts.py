@@ -6,6 +6,8 @@ from cps import logger, config, db
 from cps.tts_core import convert_epub_tts
 from pathlib import Path
 
+STAT_ENDED = 4
+
 log = logger.create()
 
 class TaskTTS(CalibreTask):
@@ -28,6 +30,11 @@ class TaskTTS(CalibreTask):
             from cps.cw_login import login_user
 
             with app.app_context():
+                cancel_check = lambda: self.stat == STAT_ENDED
+                print(self._stat)
+                if cancel_check():
+                    raise InterruptedError("TTS conversion was cancelled")
+
                 book = calibre_db.get_book(self.book_id)
                 if not book:
                     self._handleError(N_("Book not found"))
@@ -52,7 +59,8 @@ class TaskTTS(CalibreTask):
                         self.selected_chapters,
                         espeak_path,
                         tts_dir,
-                        post_event=self._progress_callback
+                        post_event=self._progress_callback,
+                        cancel_check=cancel_check
                     )
 
                     # Clean up temporary WAV files
@@ -87,10 +95,13 @@ class TaskTTS(CalibreTask):
                         self._handleSuccess()
                     else:
                         self._handleError(N_("No audiobook file was generated"))
-
                 except Exception as e:
                     log.error("TTS conversion failed: %s", str(e))
                     self._handleError(N_("TTS conversion failed: %(error)s", error=str(e)))
+
+        except InterruptedError:
+            self._handleError(N_("TTS conversion was cancelled"))
+            return
 
         except Exception as e:
             log.error("TTS task failed: %s", str(e))
@@ -115,7 +126,7 @@ class TaskTTS(CalibreTask):
         elif event_type == 'CORE_FINISHED':
             self.progress = 0.9
             self.message = N_("Finalizing audiobook")
-
+    
     @property
     def name(self):
         return N_("TTS Conversion")
