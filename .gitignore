@@ -8,7 +8,7 @@ __pycache__/
 .Python
 .python-version
 env/
-venv/
+.venv/
 eggs/
 dist/
 executable/
