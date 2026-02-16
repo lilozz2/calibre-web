@@ -55,7 +55,7 @@
           {% if current_user.is_authenticated or g.allow_anonymous %}
           <ul class="nav navbar-nav ">
             <li><a href="{{url_for('search.advanced_search')}}" id="advanced_search"><span class="glyphicon glyphicon-search"></span><span class="hidden-sm"> {{_('Advanced Search')}}</span></a></li>
-            <li><a href="http://localhost:8084/"><span class="glyphicon glyphicon-book"></span><span class="glyphicon glyphicon-plus" style="font-size: 0.7em; position: relative; top: -0.5em;"></span><span class="hidden-sm"> {{_('Add Books')}}</span></a></li>
+            <li><a href="//{{ request.host.split(':')[0] }}:8084/"><span class="glyphicon glyphicon-book"></span><span class="glyphicon glyphicon-plus" style="font-size: 0.7em; position: relative; top: -0.5em;"></span><span class="hidden-sm"> {{_('Add Books')}}</span></a></li>
             {% if simple==true %} <li><a href="{{url_for('basic.index')}}" id="basic"><span class="glyphicon glyphicon-phone"></span><span>{{_('Simple Theme')}}</span></a><li>{% endif %}
           </ul>
           {% endif %}
