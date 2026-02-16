@@ -393,34 +393,11 @@
                     </div>
                 {% endif %}
 
-                <div class="btn-group" role="group" aria-label="Query LLM">
-                    <a href=""
-                       class="btn btn-sm btn-primary" id="edit_book" role="button"><span
-                            class="glyphicon glyphicon-edit"></span> {{ _('Query LLM') }}</a>
-                </div>
                 </div>
         </div>
     </div>
 </div>
 
-<div class="container" style="margin-top: 20px;" data-book-id="{{ entry.id }}">
-    <div class="row">
-        <div class="col-sm-12">
-            <h3>{{ _('Query LLM') }}</h3>
-            <form id="llm-query-form">
-                <div class="form-group">
-                    <textarea id="llm-prompt" class="form-control" rows="3" 
-                              placeholder="{{ _('Enter your prompt here...') }}" required></textarea>
-                </div>
-                <button type="submit" class="btn btn-primary">{{ _('Send') }}</button>
-            </form>
-            <div id="llm-response" style="margin-top: 20px; display: none;">
-                <h4>{{ _('Response:') }}</h4>
-                <div id="llm-response-text" class="well" style="min-height: 100px; display: flex; justify-content: center; align-items: center;"></div>
-            </div>
-        </div>
-    </div>
-</div>
 {% endblock %}
 
 {% block js %}
@@ -441,6 +418,4 @@
 <script src="{{ url_for('static', filename='js/fullscreen.js') }}"></script>
 <script type="text/javascript">
 </script>
-<script src="{{ url_for('static', filename='js/chatbot_prompt.js') }}"></script>
-
 {% endblock %}
