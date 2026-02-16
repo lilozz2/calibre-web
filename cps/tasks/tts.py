@@ -63,14 +63,14 @@ class TaskTTS(CalibreTask):
                         cancel_check=cancel_check
                     )
 
-                    # Clean up temporary WAV files
-                    # for wav_file in glob.glob(os.path.join(tts_dir, '*.wav')):
-                    #     os.remove(wav_file)
-
                     # Find the generated audiobook
                     audiobook_list = glob.glob(os.path.join(tts_dir, '*.m4b'))
                     if audiobook_list:
                         output_file = audiobook_list[0]
+
+                        # Clean up temporary WAV files
+                        for wav_file in glob.glob(os.path.join(tts_dir, '*.wav')):
+                            os.remove(wav_file)
                         self.results['output_file'] = output_file
 
                         file_name = Path(self.book_file).stem
